@@ -67,3 +67,33 @@ try:
 
 except ImportError:
     get_input = raw_input
+
+
+def _getwinsz(fd, close=None):
+    import termios, array, fcntl
+    if fd is None:
+        tty = os.ctermid()
+        fd = os.open(tty, os.O_RDWR)
+        if close is None:
+            close = True
+    try:
+        if os.isatty(fd):
+            buf = array.array('H', [0, 0, 0, 0])
+            if fcntl.ioctl(fd, termios.TIOCGWINSZ, buf, 1) == 0:
+                height, width, xpixel, ypixel = buf
+                if height > 0 and width > 0:
+                    return width, height
+    finally:
+        if close:
+            os.close(fd)
+
+
+def getwinsz(fd=None):
+    try:
+        return _getwinsz(fd)
+    except (SystemExit, KeyboardInterrupt):
+        raise
+    except:
+        return 80, 25
+
+
