@@ -8,7 +8,7 @@ import entitydata
 import shelve #for save and load
 import entities
 import maplevel
-import logging
+import sqllogging
 import guistuff
 import fovstuff
 import keys
@@ -134,8 +134,8 @@ def new_game():
     Game.tick = 0
 
     if Game.dat.FREE_FOR_ALL_MODE: #turn on SQL junk and kill player.
-        Game.entity_sql = logging.Sqlobj(Game.dat.ENTITY_DB)
-        Game.message_sql = logging.Sqlobj(Game.dat.MESSAGE_DB)
+        Game.entity_sql = sqllogging.Sqlobj(Game.dat.ENTITY_DB)
+        Game.message_sql = sqllogging.Sqlobj(Game.dat.MESSAGE_DB)
         Game.sql_commit_counter = Game.dat.SQL_COMMIT_TICK_COUNT
         Game.player.fighter.alive = False
         Game.player.fighter.hp = 0
@@ -184,8 +184,9 @@ def play_game():
         
 
         #erase objects from old position on current map, before they move
-        for object in Game.objects[Game.dat.maplist[Game.player.dungeon_level]]:
-            object.clear(Game)
+        if 0:
+            for object in Game.objects[Game.dat.maplist[Game.player.dungeon_level]]:
+                object.clear(Game)
 
         #each time we loop, ensure that the Game.dungeon_levelname is equal to the current player dungeon level
         Game.dungeon_levelname = Game.dat.maplist[Game.player.dungeon_level]

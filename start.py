@@ -1,49 +1,36 @@
+#!/usr/bin/env python
+
+from utils import Platform, get_platform, get_input
 import gamedata
 import sys
 
-class Jumptable(object):
-    def play_dungeoneer_gfx(self):
-        import Dungeoneer
-        gamedata.ASCIIMODE = False
-        Dungeoneer.main()
+def main():
+    print('Dungoneer! by johnstein')
+    print('-----------------------')
+    while True:
+        print('    Play!               ')
+        print('1. Dungeoneer (graphics)')
+        print('2. Dungeoneer (ASCII)   ')
+        print('3. Rogue-Life           ')
+        choice = get_input()
+        if choice == '1':
+            game = 'Dungeoneer'
+            backend = 'sdl'
+        elif choice == '2':
+            game = 'Dungeoneer'
+            backend = 'curses'
+        elif choice == '3':
+            game = 'life'
+            backend = 'curses'
+        else:
+            continue
+        if backend == 'sdl':
+            gamedata.GRAPHICSMODE = 'libtcod'
+            gamedata.ASCIIMODE = False
+        else:
+            gamedata.GRAPHICSMODE = 'curses'
+            gamedata.ASCIIMODE = True
+        return __import__(game).main()
 
-    def play_dungeoneer_ascii(self):
-        import Dungeoneer
-        gamedata.ASCIIMODE = True
-        Dungeoneer.main()
-
-    def play_life(self):
-        import life
-        gamedata.ASCIIMODE = True
-        life.main()
-
-    def jump(self,cmd):
-        self.jump_table[cmd](self)
-
-    jump_table = {'1':play_dungeoneer_gfx, '2':play_dungeoneer_ascii, '3':play_life}
-
-goodchoice = False
-
-if sys.platform == 'darwin':
-   gamedata.GRAPHICSMODE = 'libtcod'
-elif sys.platform == 'linux2':
-   gamedata.GRAPHICSMODE = 'curses'
-elif sys.platform == 'win32':
-   gamedata.GRAPHICSMODE = 'libtcod'
-else:
-    raise ImportError('unknown os', sys.platform)
-
-print('Dungoneer! by johnstein')
-print('-----------------------')
-while not goodchoice:
-    print('    Play!               ')
-    print('1. Dungeoneer (graphics)')
-    print('2. Dungeoneer (ASCII)   ')
-    print('3. Rogue-Life           ')
-    choice = raw_input()
-
-    if choice in ['1', '2', '3']:
-        goodchoice = True
-        j = Jumptable()
-        j.jump(choice)
-
+if __name__ == '__main__':
+    sys.exit(main())

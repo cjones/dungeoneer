@@ -25,40 +25,59 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+import os
 import sys
-import ctypes
+import glob
 import struct
+import ctypes.util
+
+from utils import Platform, get_platform
+
 from ctypes import *
 
 if not hasattr(ctypes, "c_bool"):   # for Python < 2.6
     c_bool = c_uint8
 
-try:  #import NumPy if available
+try:
     import numpy
     numpy_available = True
 except ImportError:
     numpy_available = False
 
-LINUX=False
-MAC=False
-MINGW=False
-MSVC=False
-if sys.platform.find('linux') != -1:
-    _lib = ctypes.cdll['./libtcod.so']
-    LINUX=True
-elif sys.platform.find('darwin') != -1:
-    _lib = ctypes.cdll['./libtcod.dylib']
-    MAC = True
-elif sys.platform.find('haiku') != -1:
-    _lib = ctypes.cdll['./libtcod.so']
-    HAIKU = True
+OSX_LIB_MISSING = '''
+libtcod not found. install it with homebrew (http://brew.sh/):
+
+    $ brew tap homebrew/games
+    $ brew install libtcod
+'''
+
+PLATFORM = get_platform()
+LIBTCOD = ctypes.util.find_library('tcod')
+
+if LIBTCOD is not None:
+    _lib = ctypes.CDLL(LIBTCOD)
 else:
-    try:
-        _lib = ctypes.cdll['./libtcod-mingw.dll']
-        MINGW=True
-    except WindowsError:
-        _lib = ctypes.cdll['./libtcod-VS.dll']
-        MSVC=True
+    if PLATFORM == Platform.OSX:
+        print >> sys.stderr, OSX_LIB_MISSING
+        sys.exit(1)
+
+    ext = '.dll' if PLATFORM == Platform.WINDOWS else '.so'
+    for maybe_path in glob.glob('*' + ext):
+        try:
+            maybe_lib = ctypes.CDLL(maybe_path)
+        except (SystemExit, KeyboardInterrupt):
+            raise
+        except:
+            pass
+        else:
+            LIBTCOD = maybe_path
+            _lib = maybe_lib
+            break
+    else:
+        raise RuntimeError("couldn't find libtcod :(")
+
+# dubious
+if PLATFORM == Platform.WINDOWS:
     # On Windows, ctypes doesn't work well with function returning structs,
     # so we have to user the _wrapper functions instead
     _lib.TCOD_color_multiply = _lib.TCOD_color_multiply_wrapper
@@ -123,8 +142,9 @@ class Color(Structure):
         yield self.g
         yield self.b
 
+# the hell?
 # Should be valid on any platform, check it!  Has to be done after Color is defined.
-if MAC:
+if PLATFORM == Platform.OSX:
     from cprotos import setup_protos
     setup_protos(_lib)
 

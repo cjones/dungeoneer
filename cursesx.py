@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import gamedata
 
 if gamedata.GRAPHICSMODE == 'curses':
@@ -7,4 +9,3 @@ if gamedata.GRAPHICSMODE == 'curses':
     except:
         print('Error importing curses!')
         raise ImportError('curses module not available!')
-

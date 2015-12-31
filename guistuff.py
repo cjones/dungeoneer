@@ -47,7 +47,7 @@ class Guistuff(object):
         if self.graphicsmode == 'libtcod':
             con = libtcod.console_new(nwidth, nheight)
         elif self.graphicsmode == 'curses':
-            con = cursesx.newwin(nheight, nwidth)
+            con = cursesx.newwin(nheight, nwidth, 0, 0)
         else:
             self.err_graphicsmode('console')
             return False
@@ -147,7 +147,7 @@ class Guistuff(object):
             mouse = libtcod.Mouse()
             key = libtcod.Key()  
         elif self.graphicsmode == 'curses':
-            con.nodelay(1)
+            con.timeout(1000)
             con.keypad(1)
             cursesx.curs_set(0)
             mouse = None
@@ -194,7 +194,7 @@ class Guistuff(object):
         if self.graphicsmode == 'libtcod':
             libtcod.console_blit(con, xx, yy, nwidth, nheight, dest, dest_xx, dest_yy, ffade, bfade)
         elif self.graphicsmode == 'curses':
-            con.mvwin(dest_yy, dest_xx)
+            pass #con.mvwin(0, 0)  # broken
         else:
             self.err_graphicsmode('con_blit')
             
