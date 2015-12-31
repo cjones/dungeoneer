@@ -121,8 +121,8 @@ class Datastuff(object):
         self.MSG_HEIGHT        = self.PANEL_HEIGHT - 1
 
         #graphics
-        self.MAIN_MENU_BKG     = 'menu_background.png'
-        self.MAIN_MENU_BKG_ASCII = 'menu_background'
+        self.MAIN_MENU_BKG     = 'resources/menu_background.png'
+        self.MAIN_MENU_BKG_ASCII = 'resources/menu_background'
 
         #STATE STRINGS (change to enums one day?)
         self.STATE_PLAYING     = 'playing'

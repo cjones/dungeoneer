@@ -136,7 +136,7 @@ class Guistuff(object):
 
     def prep_console(self, con, nwidth, nheight):
         if self.graphicsmode == 'libtcod':
-            libtcod.console_set_custom_font('oryx_tiles3.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD, 32, 12)
+            libtcod.console_set_custom_font('resources/oryx_tiles3.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD, 32, 12)
             libtcod.console_init_root(nwidth, nheight, 'johnstein\'s Game of RogueLife!', False, libtcod.RENDERER_SDL)
             libtcod.sys_set_fps(30)
             rootcon = 0

@@ -53,6 +53,8 @@ libtcod not found. install it with homebrew (http://brew.sh/):
 
 PLATFORM = get_platform()
 LIBTCOD = ctypes.util.find_library('tcod')
+PREFIX = os.path.dirname(os.path.abspath(__file__))
+LIBDIR = os.path.join(PREFIX, 'lib')
 
 if LIBTCOD is not None:
     _lib = ctypes.CDLL(LIBTCOD)
@@ -61,8 +63,12 @@ else:
         print >> sys.stderr, OSX_LIB_MISSING
         sys.exit(1)
 
-    ext = '.dll' if PLATFORM == Platform.WINDOWS else '.so'
-    for maybe_path in glob.glob('*' + ext):
+    if PLATFORM == Platform.WINDOWS:
+        ext = '.dll'
+    else:
+        os.putenv('LD_LIBRARY_PATH', LIBDIR)
+        ext = '.so'
+    for maybe_path in glob.glob(os.path.join(LIBDIR, '*' + ext)):
         try:
             maybe_lib = ctypes.CDLL(maybe_path)
         except (SystemExit, KeyboardInterrupt):
