@@ -1,5 +1,5 @@
 #
-# libtcod 1.5.1 python wrapper
+# tcod 1.5.1 python wrapper
 # Copyright (c) 2008,2009,2010 Jice & Mingos
 # All rights reserved.
 #
@@ -33,10 +33,11 @@ import ctypes.util
 
 from utils import Platform, get_platform
 
-from ctypes import *
+from ctypes import (py_object, Structure, c_float, c_uint, c_char, CDLL,
+                    CFUNCTYPE, c_char_p, c_void_p, c_bool, Union, c_int,
+                    alignment, c_double, c_uint8, POINTER, byref, cast)
 
-if not hasattr(ctypes, "c_bool"):   # for Python < 2.6
-    c_bool = c_uint8
+from cprotos import Color, setup_protos
 
 try:
     import numpy
@@ -45,19 +46,19 @@ except ImportError:
     numpy_available = False
 
 OSX_LIB_MISSING = '''
-libtcod not found. install it with homebrew (http://brew.sh/):
+tcod not found. install it with homebrew (http://brew.sh/):
 
     $ brew tap homebrew/games
-    $ brew install libtcod
+    $ brew install tcod
 '''
 
 PLATFORM = get_platform()
-LIBTCOD = ctypes.util.find_library('tcod')
+tcod = ctypes.util.find_library('tcod')
 PREFIX = os.path.dirname(os.path.abspath(__file__))
 LIBDIR = os.path.join(PREFIX, 'lib')
 
-if LIBTCOD is not None:
-    _lib = ctypes.CDLL(LIBTCOD)
+if tcod is not None:
+    _lib = ctypes.CDLL(tcod)
 else:
     if PLATFORM == Platform.OSX:
         print >> sys.stderr, OSX_LIB_MISSING
@@ -76,11 +77,11 @@ else:
         except:
             pass
         else:
-            LIBTCOD = maybe_path
+            tcod = maybe_path
             _lib = maybe_lib
             break
     else:
-        raise RuntimeError("couldn't find libtcod :(")
+        raise RuntimeError("couldn't find tcod :(")
 
 # dubious
 if PLATFORM == Platform.WINDOWS:
@@ -104,54 +105,9 @@ HEXVERSION = 0x010501
 STRVERSION = "1.5.1"
 TECHVERSION = 0x01050103
 
-############################
-# color module
-############################
-class Color(Structure):
-    _fields_ = [('r', c_uint8),
-                ('g', c_uint8),
-                ('b', c_uint8),
-                ]
-
-    def __eq__(self, c):
-        return _lib.TCOD_color_equals(self, c)
-
-    def __mul__(self, c):
-        if isinstance(c,Color):
-            return _lib.TCOD_color_multiply(self, c)
-        else:
-            return _lib.TCOD_color_multiply_scalar(self, c_float(c))
-
-    def __add__(self, c):
-        return _lib.TCOD_color_add(self, c)
-
-    def __sub__(self, c):
-        return _lib.TCOD_color_subtract(self, c)
-
-    def __repr__(self):
-        return "Color(%d,%d,%d)" % (self.r, self.g, self.b)
-
-    def __getitem__(self, i):
-        if type(i) == str:
-            return getattr(self, i)
-        else:
-            return getattr(self, "rgb"[i])
-
-    def __setitem__(self, i, c):
-        if type(i) == str:
-            setattr(self, i, c)
-        else:
-            setattr(self, "rgb"[i], c)
-
-    def __iter__(self):
-        yield self.r
-        yield self.g
-        yield self.b
-
 # the hell?
 # Should be valid on any platform, check it!  Has to be done after Color is defined.
 if PLATFORM == Platform.OSX:
-    from cprotos import setup_protos
     setup_protos(_lib)
 
 _lib.TCOD_color_equals.restype = c_bool
@@ -485,7 +441,7 @@ class ConsoleBuffer:
         self.char[i] = ord(char)
     
     def blit(self, dest, fill_fore=True, fill_back=True):
-        # use libtcod's "fill" functions to write the buffer to a console.
+        # use tcod's "fill" functions to write the buffer to a console.
         if (console_get_width(dest) != self.width or
             console_get_height(dest) != self.height):
             raise ValueError('ConsoleBuffer.blit: Destination console has an incorrect size.')

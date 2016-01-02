@@ -9,3 +9,4 @@ if gamedata.GRAPHICSMODE == 'curses':
     except:
         print('Error importing curses!')
         raise ImportError('curses module not available!')
+

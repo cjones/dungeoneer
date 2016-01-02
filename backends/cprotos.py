@@ -1,9 +1,51 @@
 
-from ctypes import *
-from libtcod import Color
+from ctypes import (Structure, c_void_p, POINTER, c_uint, c_bool, c_byte,
+                    c_char_p, c_double, c_uint8, c_float, c_char, c_int)
 
 # HACK for return types
 c_void = c_int
+
+class Color(Structure):
+    _fields_ = [('r', c_uint8),
+                ('g', c_uint8),
+                ('b', c_uint8),
+                ]
+
+    def __eq__(self, c):
+        return _lib.TCOD_color_equals(self, c)
+
+    def __mul__(self, c):
+        if isinstance(c,Color):
+            return _lib.TCOD_color_multiply(self, c)
+        else:
+            return _lib.TCOD_color_multiply_scalar(self, c_float(c))
+
+    def __add__(self, c):
+        return _lib.TCOD_color_add(self, c)
+
+    def __sub__(self, c):
+        return _lib.TCOD_color_subtract(self, c)
+
+    def __repr__(self):
+        return "Color(%d,%d,%d)" % (self.r, self.g, self.b)
+
+    def __getitem__(self, i):
+        if type(i) == str:
+            return getattr(self, i)
+        else:
+            return getattr(self, "rgb"[i])
+
+    def __setitem__(self, i, c):
+        if type(i) == str:
+            setattr(self, i, c)
+        else:
+            setattr(self, "rgb"[i], c)
+
+    def __iter__(self):
+        yield self.r
+        yield self.g
+        yield self.b
+
 
 def setup_protos(lib):
     lib.TCOD_line_step.restype = c_bool
@@ -1174,4 +1216,3 @@ def setup_protos(lib):
 
     lib.TCOD_zip_skip_bytes.restype=c_void
     lib.TCOD_zip_skip_bytes.argtypes=[c_void_p ,c_int ]
-

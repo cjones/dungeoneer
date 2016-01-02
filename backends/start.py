@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
+import sys
+
 from utils import Platform, get_platform, get_input
 import gamedata
-import sys
+
+sys.dont_write_bytecode = True
 
 def main():
     print('Dungoneer! by johnstein')
@@ -25,7 +28,7 @@ def main():
         else:
             continue
         if backend == 'sdl':
-            gamedata.GRAPHICSMODE = 'libtcod'
+            gamedata.GRAPHICSMODE = 'tcod'
             gamedata.ASCIIMODE = False
         else:
             gamedata.GRAPHICSMODE = 'curses'
