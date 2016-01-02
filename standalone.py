@@ -36,6 +36,7 @@ if CURSES:
     BACKENDS.append('curses')
 if DEVELOP:
     BACKENDS.append('dummy')
+FOVBACKENDS = ['tcod']
 
 class Logger(logging.Logger):
     format = '%(asctime)s [%(levelname)s] %(message)s'
@@ -78,13 +79,6 @@ class Logger(logging.Logger):
 
     @classmethod
     def parse_string_format(cls, string):
-        # returns an iterable that contains tuples of the form:
-        # (literal_text, field_name, format_spec, conversion)
-        # literal_text can be zero length
-        # field_name can be None, in which case there's no
-        #  object to format and output
-        # if field_name is not None, it is looked up, formatted
-        #  with format_spec and conversion and then used
         for literal_text, field_name, format_spec, conversion in str._formatter_parser(string):
             if field_name is not None:
                 yield field_name
@@ -117,6 +111,22 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 logger.setLevel(logging.DEBUG)
 logger.disabled = True
+
+class HelpFormatter(argparse.HelpFormatter):
+
+    _hijack = lambda f: property(f).setter(lambda *x: x)
+    _max_help_position = _hijack(lambda x: x._action_max_length + 2)
+    _width = _hijack(lambda x: 78)
+
+    def _format_action_invocation(self, action, pad='    ', sep=' '):
+        if action.option_strings:
+            for option_string in action.option_strings:
+                pad, sep = ('', sep) if len(option_string) == 2 else (pad, '=')
+            out = pad + ', '.join(action.option_strings)
+            if action.nargs != 0:
+                out += sep + self._format_args(action, action.dest.upper())
+            return out
+        return super(HelpFormatter, self)._format_action_invocation(action)
 
 
 class CallbackAction(argparse.Action):
@@ -2699,28 +2709,46 @@ class GameEngine(object):
 
 def main(argv=None, engine=GameEngine):
     parser = argparse.ArgumentParser(
-            formatter_class=argparse.HelpFormatter,
+            formatter_class=HelpFormatter,
             description=__doc__,
             version=None,
-            add_help=True,
+            add_help=False,
             prog=None,
             )
-    _ = parser.add_argument_group('game options').add_argument
-    _('-m', '--game-mode', choices=BACKENDS, default=BACKENDS[0],
-            help='select from available engine backends (default: %(default)s)')
-    _('-f', '--fov-mode', choices=BACKENDS, default=BACKENDS[0],
-            help='select from available fov backends (default: %(default)s)')
+    group = parser.add_argument_group('options')
+    _ = group.add_argument
+    _('-h', '--help', action='help',
+            help='show this help message and exit')
+    if len(BACKENDS) == 1:
+        parser.set_defaults(game_mode=BACKENDS[0])
+    else:
+        _('-m', '--game-mode', choices=BACKENDS, default=BACKENDS[0], metavar='MODE',
+            help='game render mode {%(choices)s} [%(default)s]')
+    if len(FOVBACKENDS) == 1:
+        parser.set_defaults(fov_mode=FOVBACKENDS[0])
+    else:
+        _('-f', '--fov-mode', choices=FOVBACKENDS, default=FOVBACKENDS[0],
+                help='select from available fov backends (default: %(default)s)')
     _('-a', '--ascii-mode', default=False, action='store_true',
-            help='use ascii mode for the tiles')
+            help='use ascii characters for tiles')
     _('-d', '--debug-file', metavar='FILE', action=AddLogFileAction, logger=logger,
-            help='sets debug logging for %(metavar)s')
+            help='enable debug logging to %(metavar)s')
+
+    if CURSES:
+        _ = group.add_mutually_exclusive_group().add_argument
+        _('-c', '--console', dest='game_mode', action='store_const', const='curses',
+                help='same as --game-mode=curses')
+        _('-g', '--gui', dest='game_mode', action='store_const', const='tcod',
+                help='same as --game-mode=tcod')
+
     try:
         opts = parser.parse_args(argv)
         if opts.game_mode == 'dummy':
             logger.add_stream(sys.stderr)
             logger.disabled = False
             logger.info('began logging for dummy mode')
-
+        if opts.game_mode == 'curses':
+            opts.ascii_mode = True
         engine(**vars(opts)).run()
     except SystemExit, exc:
         return exc.code
