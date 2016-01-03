@@ -95,5 +95,3 @@ def getwinsz(fd=None):
         raise
     except:
         return 80, 25
-
-

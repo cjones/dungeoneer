@@ -250,7 +250,7 @@ class GameData(object):
 
     def __init__(self, engine):
         self.engine = engine
-        self.SHOW_PANEL         = False
+        self.SHOW_PANEL         = True
         self.WALL_CHAR          = 'X'
         self.GROUND_CHAR        = ' '
         self.COLOR_DARK_WALL    = self.engine.col.DARK_GREY
@@ -272,12 +272,10 @@ class GameData(object):
         self.TILE_SKEL_TEAL     = 256 + 32 + 7  #2nd tile in the 2nd row of tiles
         self.TILE_SKEL_YELLOW   = 256 + 32 + 8  #2nd tile in the 2nd row of tiles
         self.TILE_SKEL_PURPLE   = 256 + 32 + 9  #2nd tile in the 2nd row of tiles
-        self.maplist =[]
-        self.maplist.append('Intro')
-        self.maplist.append('Brig')
+        self.maplist = ['Intro', 'Brig']
 
-        self.SCREEN_WIDTH       = 80  #SETS OVERALL SCREEN WIDTH. MUST BE > MAP_WIDTH
-        self.SCREEN_HEIGHT      = 60  #SETS OVERALL SCREEN HEIGHT. MUST BE > MAP_HEIGHT
+        self.SCREEN_WIDTH       = 80
+        self.SCREEN_HEIGHT      = 60
         self.CAMERA_WIDTH       = 80
         self.CAMERA_HEIGHT      = 40
         self.MAP_WIDTH          = 100
@@ -347,7 +345,25 @@ class GameData(object):
         self.CONFUSE_RANGE = 8
 
 
-class Thing(object):
+class Entity(object):
+
+    if 0:
+        def __new__(cls, *args, **kwargs):
+            instance = super(Entity, cls).__new__(cls, *args, **kwargs)
+            instance._dungeon_level = None
+            return instance
+
+        @property
+        def dungeon_level(self):
+            if self is self.engine.player:
+                print 'asked about level, returning', repr(self._dungeon_level)
+            return self._dungeon_level
+
+        @dungeon_level.setter
+        def dungeon_level(self, lvl):
+            if self is self.engine.player:
+                print 'someone is setting level to', repr(lvl)
+            self._dungeon_level = lvl
 
     def __init__(self, engine, x=0, y=0, char='?', name=None, color=None,
                  tilechar=None, blocks=False, id=None, dungeon_level=None,
@@ -413,7 +429,7 @@ class Thing(object):
         self.move(random_int(0, -1, 1), random_int(0, -1, 1))
 
     def draw(self):
-        if (self.engine.fovx.map_is_in_fov(self.engine.player.fighter.fov, self.x, self.y) or (self.always_visible and self.map[self.engine.dungeon_levelname].explored(self.x, self.y))):
+        if (self.engine.fovx.map_is_in_fov(self.engine.player.fighter.fov, self.x, self.y) or (self.always_visible and self.engine.map[self.engine.dungeon_levelname].explored(self.x, self.y))):
             (x, y) = self.engine.to_camera_coordinates(self.x, self.y)
             if x is not None:
                 if self.engine.ascii_mode:
@@ -480,8 +496,8 @@ class Thing(object):
         return get_distance(x - self.x, y - self.y)
 
     def send_to_back(self):
-        self.engine.objects[self.engine.dungeon_levelname].remove(self)
-        self.engine.objects[self.engine.dungeon_levelname].insert(0, self)
+        self.engine.entities[self.engine.dungeon_levelname].remove(self)
+        self.engine.entities[self.engine.dungeon_levelname].insert(0, self)
 
 
 class Fighter(object):
@@ -588,21 +604,19 @@ class Fighter(object):
     def attack(self, target):
         damage = self.power() - target.fighter.defense()
         if damage > 0:
-            if self is self.player:
-                self.engine.message('You attack ' + target.name  + '!', self.col.YELLOW)
-            elif entity_sees(self.player, self.owner):
-                self.engine.message(self.owner.name.capitalize() + ' attacks ' + target.name, self.col.YELLOW)
-            elif entity_sees(self.player, target):
-                self.engine.message(target.name + ' has been attacked! ', self.col.YELLOW)
+            if self is self.engine.player:
+                self.engine.message('You attack ' + target.name  + '!', self.engine.col.YELLOW)
+            elif self.entity_sees(self.engine.player, self.owner):
+                self.engine.message(self.owner.name.capitalize() + ' attacks ' + target.name, self.engine.col.YELLOW)
+            elif self.entity_sees(self.engine.player, target):
+                self.engine.message(target.name + ' has been attacked! ', self.engine.col.YELLOW)
             target.fighter.take_damage(self.owner, damage)
         else:
-            if self is self.player:
-                self.engine.message('You tried to attack ' + target.name + ' but there is no effect.', self.col.WHITE)
+            if self is self.engine.player:
+                self.engine.message('You tried to attack ' + target.name + ' but there is no effect.', self.engine.col.WHITE)
 
     def entity_sees(self, entity, target):
         return self.engine.fovx.map_is_in_fov(entity.fighter.fov, target.x, target.y) and entity.dungeon_level == target.dungeon_level
-
-
 
 
 class Ai(object):
@@ -617,7 +631,8 @@ class Ai(object):
 
 class Buff(object):
 
-    def __init__(self, name, power_bonus=0, defense_bonus=0, max_hp_bonus=0, speed_bonus=0, regen_bonus=0, decay_rate=None, duration=None):
+    def __init__(self, engine, name, power_bonus=0, defense_bonus=0, max_hp_bonus=0, speed_bonus=0, regen_bonus=0, decay_rate=None, duration=None):
+        self.engine = engine
         self.name = name
         self.power_bonus = power_bonus
         self.defense_bonus = defense_bonus
@@ -626,10 +641,10 @@ class Buff(object):
         self.regen_bonus = regen_bonus
         self.decay_rate = decay_rate #if 0, buff does not decay. use positive numbers to make buffs decrement
         if self.decay_rate is None:
-            self.decay_rate = self.dat.BUFF_DECAYRATE
+            self.decay_rate = self.engine.dat.BUFF_DECAYRATE
         self.duration = duration
         if self.duration is None:
-            self.duration = self.dat.BUFF_DURATION
+            self.duration = self.engine.dat.BUFF_DURATION
 
 
 class Caster(object):
@@ -674,12 +689,12 @@ class Item(object):
 
     def pick_up(self, user):
         if len(user.fighter.inventory) >= 26:
-            if user is self.player:
+            if user is self.engine.player:
                 self.engine.message('Your inventory is full! Cannot pick up ' + self.owner.name +'.', self.col.MAGENTA)
             retval = self.dat.STATE_NOACTION
         else:
             user.fighter.add_item(self.owner)
-            self.engine.objects[self.engine.dungeon_levelname].remove(self.owner)
+            self.engine.entities[self.engine.dungeon_levelname].remove(self.owner)
             if user is self.engine.player:
                 name = 'You'
             else:
@@ -692,14 +707,14 @@ class Item(object):
         return retval
 
     def drop(self, user):
-        self.objects[self.engine.dungeon_levelname].append(self.owner)
+        self.engine.entities[self.engine.dungeon_levelname].append(self.owner)
         user.fighter.remove_item(self.owner)
         self.owner.x = user.x
         self.owner.y = user.y
-        self.owner.dungeon_level = self.dat.maplist.index(self.engine.dungeon_levelname)
+        self.owner.dungeon_level = self.engine.dat.maplist.index(self.engine.dungeon_levelname)
         self.owner.send_to_back()
-        if user is self.player:
-            self.engine.message('You dropped a ' + self.owner.name + '.', self.col.YELLOW)
+        if user is self.engine.player:
+            self.engine.message('You dropped a ' + self.owner.name + '.', self.engine.col.YELLOW)
         if self.owner.equipment:
             self.owner.equipment.dequip(user)
 
@@ -756,10 +771,10 @@ class ConfusedMonster(object):
         if self.num_turns > 0: #still confused
             self.owner.move(random_int(0, -1, 1), random_int(0, -1, 1))
             self.num_turns -= 1
-            self.engine.message(self.owner.name + ' is STILL confused!', self.col.RED)
+            self.engine.message(self.owner.name + ' is STILL confused!', self.engine.col.RED)
         else:
             self.owner.ai = self.old_ai
-            self.engine.message(self.owner.name + ' is no longer confused', self.col.GREEN)
+            self.engine.message(self.owner.name + ' is no longer confused', self.engine.col.GREEN)
         if self.owner.fighter:
             return True
         else:
@@ -818,7 +833,7 @@ class EntityData(object):
 
     def __init__(self, engine):
         self.mobs = {
-         'johnstein':      {'char':'j', 'color':engine.col.LIGHT_GREY,  'tilechar':engine.dat.TILE_SKEL_WHITE,   'fighter':{'hp':100 , 'defense':0 , 'power':20 , 'xp':0, 'xpvalue':20 , 'clan':'monster', 'death_function':engine.monster_death, 'speed':5}, 'caster':{'mp':10}},
+         'johnstein':      {'char':'j', 'color':engine.col.LIGHT_GREY,  'tilechar':engine.dat.TILE_SKEL_WHITE,   'fighter':{'hp':200 , 'defense':0 , 'power':20 , 'xp':0, 'xpvalue':20 , 'clan':'monster', 'death_function':engine.monster_death, 'speed':5}, 'caster':{'mp':10}},
          'greynaab':       {'char':'g', 'color':engine.col.LIGHT_BLUE,  'tilechar':engine.dat.TILE_SKEL_RED  ,   'fighter':{'hp':200 , 'defense':1 , 'power':40 , 'xp':0, 'xpvalue':40 , 'clan':'monster', 'death_function':engine.monster_death, 'speed':5}},
          'jerbear':        {'char':'j', 'color':engine.col.GREEN,       'tilechar':engine.dat.TILE_SKEL_BLUE ,   'fighter':{'hp':250 , 'defense':1 , 'power':50 , 'xp':0, 'xpvalue':50 , 'clan':'monster', 'death_function':engine.monster_death, 'speed':5}},
          'zombiesheep':    {'char':'z', 'color':engine.col.YELLOW,      'tilechar':engine.dat.TILE_SKEL_GREEN,   'fighter':{'hp':300 , 'defense':2 , 'power':60 , 'xp':0, 'xpvalue':60 , 'clan':'monster', 'death_function':engine.monster_death, 'speed':5}},
@@ -1207,7 +1222,6 @@ class GUI(object):
     def getkey(self, con, mouse, key, wait=False):
         if self.engine.game_mode == 'tcod':
             if wait:
-                print('waiting for key')
                 key = tcod.console_wait_for_keypress(True)
             else:
                 tcod.sys_check_for_event(tcod.EVENT_KEY_PRESS | tcod.EVENT_MOUSE, key, mouse)
@@ -1310,8 +1324,8 @@ class GUI(object):
         if self.engine.game_mode == 'tcod':
             (x, y) = (self.engine.mouse.cx, self.engine.mouse.cy)
             (x, y) = (self.engine.camera_x + x, self.engine.camera_y + y)  #from screen to map coords
-            names = [obj.name for obj in self.engine.objects[self.engine.dungeon_levelname]
-                if obj.x == x and obj.y == y and self.engine.fovx.map_is_in_fov(self.player.fighter.fov, obj.x, obj.y)]
+            names = [entity.name for entity in self.engine.entities[self.engine.dungeon_levelname]
+                if entity.x == x and entity.y == y and self.engine.fovx.map_is_in_fov(self.engine.player.fighter.fov, entity.x, entity.y)]
             names = ', '.join(names) #join names separated by commas
             return names.capitalize()
         elif self.engine.game_mode == 'curses':
@@ -1607,6 +1621,7 @@ class GameEngine(object):
         self.fov_mode = fov_mode
         self.ascii_mode = ascii_mode
         self.stdscr = None
+        self.player = None
 
     @property
     def winsz(self):
@@ -1742,9 +1757,22 @@ class GameEngine(object):
 
     def next_level(self):
         self.message('You head down the stairs', self.col.RED)
-        self.player.dungeon_level +=1
-        self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
-        if not self.dungeon_levelname in self.map:
+        #print self.dat.maplist
+        #print self.player.dungeon_level
+        #print self.dungeon_levelname
+        self.player.dungeon_level += 1
+        try:
+            self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
+        except IndexError:
+            self.dungeon_levelname = 'Level {}'.format(self.player.dungeon_level)
+            self.dat.maplist.append(self.dungeon_levelname)
+
+        if self.dungeon_levelname not in self.map:
+            self.make_map(self.player.dungeon_level, self.dungeon_levelname) #create fresh new level
+        self.player.x = self.upstairs[self.dungeon_levelname].x
+        self.player.y = self.upstairs[self.dungeon_levelname].y
+
+        if self.dungeon_levelname not in self.map:
             self.make_map(self.player.dungeon_level, self.dungeon_levelname) #create fresh new level
         self.player.x = self.upstairs[self.dungeon_levelname].x
         self.player.y = self.upstairs[self.dungeon_levelname].y
@@ -1754,9 +1782,9 @@ class GameEngine(object):
         self.message('You head up the stairs', self.col.RED)
         self.player.dungeon_level -=1
         self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
-        if self.player.dungeon_level <= 0: #leave dungeon
+        if self.player.dungeon_level < 0: #leave dungeon
             self.message('You\'ve left the dungeon!', self.col.RED)
-            self.player.dungeon_level =1 #workaround to prevent game from complaining.
+            self.player.dungeon_level = 0 #workaround to prevent game from complaining.
             return self.dat.STATE_EXIT
         else:
             if not self.dungeon_levelname in self.map:
@@ -1767,19 +1795,19 @@ class GameEngine(object):
 
     def make_dungeon(self):
         for index,level in enumerate(self.dat.maplist):
-            if index > 0: #skip intro level
-                logger.info('MAPGEN: {}, {}, creating level {}', self.tick, self.dungeon_levelname, level)
-                self.player.dungeon_level = index
-                self.dungeon_levelname = level
-                self.make_map(index, level)
-        self.player.dungeon_level = 1
+            #if index > 0: #skip intro level
+            logger.info('MAPGEN: {}, {}, creating level {}', self.tick, self.dungeon_levelname, level)
+            self.player.dungeon_level = index
+            self.dungeon_levelname = level
+            self.make_map(index, level)
+        self.player.dungeon_level = 0
         self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
         self.player.x = self.upstairs[self.dungeon_levelname].x
         self.player.y = self.upstairs[self.dungeon_levelname].y
         self.map[self.dungeon_levelname].initialize_fov()
 
     def make_map(self, levelnum, levelname):
-        self.objects[self.dungeon_levelname] = [self.player]
+        self.entities[self.dungeon_levelname] = [self.player]
         logger.info('MAPGEN: {}, {}, creating map: {}', self.tick, self.dungeon_levelname, self.dungeon_levelname)
         self.map[self.dungeon_levelname] = Maplevel(self.dat.MAP_HEIGHT, self.dat.MAP_WIDTH, levelnum, levelname, self.fovx)
         rooms = []
@@ -1798,12 +1826,12 @@ class GameEngine(object):
             if not failed:
                 self.map[self.dungeon_levelname].create_room(new_room)
                 (new_x, new_y) = new_room.center()
-                self.place_objects(new_room)
+                self.place_entities(new_room)
                 if num_rooms == 0:
                     self.player.x = new_x
                     self.player.y = new_y
-                    self.upstairs[self.dungeon_levelname] = Thing(self, new_x, new_y, '<', 'upstairs', self.col.WHITE, always_visible = True)
-                    self.objects[self.dungeon_levelname].append(self.upstairs[self.dungeon_levelname])
+                    self.upstairs[self.dungeon_levelname] = Entity(self, new_x, new_y, '<', 'upstairs', self.col.WHITE, always_visible = True)
+                    self.entities[self.dungeon_levelname].append(self.upstairs[self.dungeon_levelname])
                     self.upstairs[self.dungeon_levelname].send_to_back() #so it's drawn below the monsters
                 else:
                     (prev_x, prev_y) = rooms[num_rooms -1].center()
@@ -1815,12 +1843,12 @@ class GameEngine(object):
                         self.map[self.dungeon_levelname].create_h_tunnel(prev_x, new_x, new_y)
                 rooms.append(new_room)
                 num_rooms +=1
-        self.downstairs[self.dungeon_levelname] = Thing(self, new_x, new_y, '>', 'downstairs', self.col.WHITE, always_visible = True)
-        self.objects[self.dungeon_levelname].append(self.downstairs[self.dungeon_levelname])
+        self.downstairs[self.dungeon_levelname] = Entity(self, new_x, new_y, '>', 'downstairs', self.col.WHITE, always_visible = True)
+        self.entities[self.dungeon_levelname].append(self.downstairs[self.dungeon_levelname])
         self.downstairs[self.dungeon_levelname].send_to_back() #so it's drawn below the monsters
         self.map[self.dungeon_levelname].initialize_fov()
 
-    def place_objects(self, room):
+    def place_entities(self, room):
         nextid = 1
         max_monsters = from_dungeon_level([[10, 1], [40, 3], [50, 6], [70, 10]], self.dat.maplist.index(self.dungeon_levelname))
         num_monsters = random_int(0, 0, max_monsters)
@@ -1833,7 +1861,7 @@ class GameEngine(object):
             y =  random_int(0, room.y1 + 1, room.y2 - 1)
             if not self.is_blocked(x, y):
                 choice = random_choice(monster_chances)
-                monster             = Thing(self, **self.ent.mobs[choice])
+                monster             = Entity(self, **self.ent.mobs[choice])
                 monster.dungeon_level = self.dat.maplist.index(self.dungeon_levelname)
                 monster.blocks      = True
                 monster.ai          = Ai(BasicMonster(self))  #how do I set different ai?
@@ -1847,21 +1875,21 @@ class GameEngine(object):
                 logger.info('MAPGEN: {}, {}, made a monster {}', self.tick, self.dungeon_levelname, monster.name)
                 if self.ent.mobitems[choice]:
                     for itemname in self.ent.mobitems[choice]:
-                        item = Thing(self, **self.ent.items[itemname])
+                        item = Entity(self, **self.ent.items[itemname])
                         monster.fighter.add_item(item)
                 monster.set_location(x, y)
-                self.objects[self.dungeon_levelname].append(monster)
+                self.entities[self.dungeon_levelname].append(monster)
         for i in range(num_items):
             x = random_int(0, room.x1 + 1, room.x2 - 1)
             y = random_int(0, room.y1 + 1, room.y2 - 1)
             if not self.is_blocked(x, y):
                 choice = random_choice(item_chances)
-                item = Thing(self, **self.ent.items[choice])
+                item = Entity(self, **self.ent.items[choice])
                 item.always_visible = True
                 item.set_location(x, y)
                 item.dungeon_level = self.dat.maplist.index(self.dungeon_levelname)
-                self.objects[self.dungeon_levelname].append(item)
-                item.send_to_back() #items appear below other objects
+                self.entities[self.dungeon_levelname].append(item)
+                item.send_to_back() #items appear below other entities
 
     def get_monster_chances(self):
         monster_chances = {}
@@ -1922,10 +1950,10 @@ class GameEngine(object):
         self.gui.print_rect(window, xoffset, yoffset, width, height, header)
         y = header_height
         letter_index = ord('a')
-        for obj in options:
-            text = obj.text
-            color = obj.color
-            char = obj.char
+        for opt in options:
+            text = opt.text
+            color = opt.color
+            char = opt.char
             if color is None: color = self.col.WHITE
             if char is None: char = ''
             if letterdelim is None:
@@ -1966,16 +1994,16 @@ class GameEngine(object):
         if user.fighter:
             options = []
             if not len(user.fighter.inventory):
-                obj = MenuOption('inventory is empty!', color=self.col.WHITE, char='?')
-                options.append(obj)
+                opt = MenuOption('inventory is empty!', color=self.col.WHITE, char='?')
+                options.append(opt)
             else:
                 for item in user.fighter.inventory:
                     logger.debug('inventory item: {}', item)
                     text = item.name
                     if item.equipment and item.equipment.is_equipped:
                         text = text + ' (on ' + item.equipment.slot + ')'
-                    obj = MenuOption(text, color=item.color, char=item.char)
-                    options.append(obj)
+                    opt = MenuOption(text, color=item.color, char=item.char)
+                    options.append(opt)
             index = self.menu(rootcon, header, options, self.dat.INVENTORY_WIDTH, letterdelim='')
             if (index is None or len(user.fighter.inventory) == 0) or index == 'ESC':
                 return None
@@ -2025,9 +2053,9 @@ class GameEngine(object):
                     self.fov_wall_ground = fov_wall_ground
                     if self.map[self.dungeon_levelname].explored(map_x, map_y):
                         self.gui.print_char(self.con, x, y, val=char_wall_ground, fg_color=fov_wall_ground, bg_color=color_wall_ground)
-            for object in self.objects[self.dungeon_levelname]:
-                if object != self.player:
-                    object.draw()
+            for entity in self.entities[self.dungeon_levelname]:
+                if entity != self.player:
+                    entity.draw()
             self.player.draw()
             self.gui.con_blit(self.con, 0, 0, self.dat.SCREEN_WIDTH, self.dat.SCREEN_HEIGHT, self.rootcon, 0, 0)
             self.gui.clear(self.panel)
@@ -2059,9 +2087,9 @@ class GameEngine(object):
         x = self.player.x + dx
         y = self.player.y + dy
         target = None
-        for object in self.objects[self.dat.maplist[self.player.dungeon_level]]:
-            if object.x == x and object.y == y and object.fighter:
-                target = object
+        for entity in self.entities[self.dat.maplist[self.player.dungeon_level]]:
+            if entity.x == x and entity.y == y and entity.fighter:
+                target = entity
                 break
         if target is not None:
             self.player.fighter.attack(target)
@@ -2071,9 +2099,9 @@ class GameEngine(object):
             if self.player.move(dx, dy):
                 self.player.game_turns +=1
                 state = self.dat.STATE_PLAYING
-                for object in self.objects[self.dat.maplist[self.player.dungeon_level]]: #look for items in the player's title
-                    if object.x == self.player.x and object.y == self.player.y and object is not self.player:
-                        self.message('* You see ' + object.name + ' at your feet *', self.col.YELLOW)
+                for entity in self.entities[self.dat.maplist[self.player.dungeon_level]]: #look for items in the player's title
+                    if entity.x == self.player.x and entity.y == self.player.y and entity is not self.player:
+                        self.message('* You see ' + entity.name + ' at your feet *', self.col.YELLOW)
             else:
                 state = self.dat.STATE_NOACTION
         self.fov_recompute = True
@@ -2103,7 +2131,7 @@ class GameEngine(object):
             self.message('You become ENRAGED!', self.col.RED)
         else:
             self.message('The ' + user.name + ' beomes ENRAGED!', self.col.RED)
-        buff_component = Buff('Super Strength', power_bonus=10)
+        buff_component = Buff(self, 'Super Strength', power_bonus=10)
         user.fighter.add_buff(buff_component)
 
     def use_blue_crystal(self, user):
@@ -2111,7 +2139,7 @@ class GameEngine(object):
             self.message('You feel well-protected!', self.col.CYAN)
         else:
             self.message('The ' + user.name + ' looks well protected!', self.col.RED)
-        buff_component = Buff('Super Defense', defense_bonus=10)
+        buff_component = Buff(self, 'Super Defense', defense_bonus=10)
         user.fighter.add_buff(buff_component)
 
     def use_green_crystal(self, user):
@@ -2119,7 +2147,7 @@ class GameEngine(object):
             self.message('You feel more resilient!', self.col.GREEN)
         else:
             self.message('The ' + user.name + ' feels more resilient!', self.col.RED)
-        buff_component = Buff('Super Health', max_hp_bonus=50)
+        buff_component = Buff(self, 'Super Health', max_hp_bonus=50)
         user.fighter.add_buff(buff_component)
         user.fighter.hp = self.player.fighter.max_hp()
 
@@ -2128,7 +2156,7 @@ class GameEngine(object):
             self.message('You feel healthy!', self.col.YELLOW)
         else:
             self.message('The ' + user.name + ' looks healthier!', self.col.RED)
-        buff_component = Buff('Super Regen', regen_bonus=-20)
+        buff_component = Buff(self,'Super Regen', regen_bonus=-20)
         user.fighter.add_buff(buff_component)
 
     def use_orange_crystal(self, user):
@@ -2136,17 +2164,16 @@ class GameEngine(object):
             self.message('You feel speedy!', self.col.CYAN)
         else:
             self.message('The ' + user.name + ' looks speedy!', self.col.CYAN)
-        buff_component = Buff('Super Speed', speed_bonus=-3)
+        buff_component = Buff(self, 'Super Speed', speed_bonus=-3)
         user.fighter.add_buff(buff_component)
 
     def cast_confusion(self, user):
-        target = None
         target = self.closest_nonclan(self.dat.TORCH_RADIUS, user)
         if user is self.player:
             self.message('Left-click an enemy to confuse. Right-click or ESC to cancel', self.col.LIGHT_CYAN)
-            target = target_monster(self, self.dat.CONFUSE_RANGE)
+            target = self.target_monster(self.dat.CONFUSE_RANGE)
             name = 'You'
-        elif not target is None:
+        elif target is not None:
             target = self.closest_nonclan(self.dat.TORCH_RADIUS, user)
             name = user.name
         else:
@@ -2171,7 +2198,7 @@ class GameEngine(object):
         target = self.closest_nonclan(self.dat.TORCH_RADIUS, user)
         if user is self.player:
             self.message('Left-click a target tile for the fireball. Right-Click or ESC to cancel', self.col.LIGHT_CYAN)
-            (x,y) = target_tile(self)
+            (x,y) = self.target_tile()
         elif target:
             if self.fovx.map_is_in_fov(user.fighter.fov, target.x, target.y) and target.dungeon_level == user.dungeon_level:
                 (x,y) = (target.x, target.y)
@@ -2185,11 +2212,11 @@ class GameEngine(object):
             theDmg = roll_dice([[self.dat.FIREBALL_DAMAGE/2, self.dat.FIREBALL_DAMAGE*2]])[0]
             fov_map_fireball = self.map[self.dungeon_levelname].fov_map
             self.fovx.map_compute_fov(fov_map_fireball, x, y, self.dat.FIREBALL_RADIUS, self.dat.FOV_LIGHT_WALLS, self.dat.FOV_ALGO)
-            for obj in self.objects[self.dungeon_levelname]: #damage all fighters within range
-                if self.fovx.map_is_in_fov(fov_map_fireball, obj.x, obj.y) and obj.fighter:
+            for entity in self.entities[self.dungeon_levelname]: #damage all fighters within range
+                if self.fovx.map_is_in_fov(fov_map_fireball, entity.x, entity.y) and entity.fighter:
                     self.message('The fireball explodes', self.col.RED)
-                    self.message(obj.name + ' is burned for '+ str(theDmg) + ' HP', self.col.RED)
-                    obj.fighter.take_damage(user, theDmg)
+                    self.message(entity.name + ' is burned for '+ str(theDmg) + ' HP', self.col.RED)
+                    entity.fighter.take_damage(user, theDmg)
 
     def cast_heal(self, user):
         if user.fighter.hp == user.fighter.max_hp():
@@ -2289,9 +2316,9 @@ class GameEngine(object):
             monster.send_to_back()
             if killer.fighter:
                 killer.fighter.xp += monster.fighter.xpvalue
-            self.message(name + ' killed ' + monster.name + ' and gains ' + str(monster.fighter.xpvalue) + 'XP', self.col.YELLOW, self.engine.isplayer(killer))
+            self.message(name + ' killed ' + monster.name + ' and gains ' + str(monster.fighter.xpvalue) + 'XP', self.col.YELLOW, self.isplayer(killer))
             for equip in monster.fighter.inventory:
-                equip.item.drop(self, monster)
+                equip.item.drop(monster)
             monster.char = '%'
             monster.color = self.col.MAGENTA
             monster.blocks = False
@@ -2301,9 +2328,9 @@ class GameEngine(object):
 
     def get_equipped_in_slot(self, slot, user): #returns the equipment in a slot, or None if it's empty
         if user.fighter.inventory:
-            for obj in user.fighter.inventory:
-                if obj.equipment and obj.equipment.slot == slot and obj.equipment.is_equipped:
-                    return obj.equipment
+            for entity in user.fighter.inventory:
+                if entity.equipment and entity.equipment.slot == slot and entity.equipment.is_equipped:
+                    return entity.equipment
         return None
 
     def get_all_equipped(self, user): #returns list of equipped items
@@ -2313,25 +2340,25 @@ class GameEngine(object):
                 if item.equipment and item.equipment.is_equipped:
                     equipped_list.append(item.equipment)
             return equipped_list
-        return [] #other self.objects[self.dungeon_levelname] have no equipment
+        return [] #other self.entities[self.dungeon_levelname] have no equipment
 
-    def target_monster(self, max_range = None):
+    def target_monster(self, max_range=None):
         while True:
-            (x, y) = target_tile(self, max_range)
+            (x, y) = self.target_tile(max_range)
             if x is None: #player cancelled
                 return None
-            for obj in self.objects[self.dungeon_levelname]:
-                if obj.x == x and obj.y == y and obj.fighter and obj != self.player and obj.dungeon_level == self.player.dungeon_level:
-                    return obj
+            for entity in self.entities[self.dungeon_levelname]:
+                if entity.x == x and entity.y == y and entity.fighter and entity != self.player and entity.dungeon_level == self.player.dungeon_level:
+                    return entity
 
     def closest_monster(self, max_range):
         closest_enemy = None
         closest_dist = max_range + 1 #start with slightly higher than max range
-        for object in self.objects[self.dungeon_levelname]:
-            if object.fighter and not object == self.player and self.fovx.map_is_in_fov(self.player.fighter.fov, object.x, object.y):
-                dist = self.player.distance_to(object)
+        for entity in self.entities[self.dungeon_levelname]:
+            if entity.fighter and not entity == self.player and self.fovx.map_is_in_fov(self.player.fighter.fov, entity.x, entity.y):
+                dist = self.player.distance_to(entity)
                 if dist < closest_dist:
-                    closest_enemy = object
+                    closest_enemy = entity
                     closest_dist = dist
         return closest_enemy
 
@@ -2349,11 +2376,11 @@ class GameEngine(object):
         if dude.fighter.fov is None:
             fov_map_dude = self.map[self.dungeon_levelname].fov_map
         fov_map_dude = dude.fighter.recompute_fov()
-        for object in self.objects[self.dungeon_levelname]:
-            if object.item and self.fovx.map_is_in_fov(fov_map_dude, object.x, object.y) and object.dungeon_level == dude.dungeon_level:
-                dist = dude.distance_to(object)
+        for entity in self.entities[self.dungeon_levelname]:
+            if entity.item and self.fovx.map_is_in_fov(fov_map_dude, entity.x, entity.y) and entity.dungeon_level == dude.dungeon_level:
+                dist = dude.distance_to(entity)
                 if dist < closest_dist:
-                    closest_item = object
+                    closest_item = entity
                     closest_dist = dist
         return closest_item
 
@@ -2361,54 +2388,54 @@ class GameEngine(object):
         closest_nonclan = None
         closest_dist = max_range + 1 #start with slightly higher than max range
         if dude.fighter.fov is None:
-            fov_map_dude = dude.fighter.set_fov(self)
+            fov_map_dude = dude.fighter.set_fov() # XXX where is this method?
         fov_map_dude = dude.fighter.recompute_fov()
-        for object in self.objects[self.dungeon_levelname]:
-            if object.fighter and  object.fighter.clan != dude.fighter.clan and self.fovx.map_is_in_fov(fov_map_dude, object.x, object.y) and object.dungeon_level == dude.dungeon_level and object.fighter.alive:
-                dist = dude.distance_to(object)
+        for entity in self.entities[self.dungeon_levelname]:
+            if entity.fighter and  entity.fighter.clan != dude.fighter.clan and self.fovx.map_is_in_fov(fov_map_dude, entity.x, entity.y) and entity.dungeon_level == dude.dungeon_level and entity.fighter.alive:
+                dist = dude.distance_to(entity)
                 if dist < closest_dist:
-                    closest_nonclan = object
+                    closest_nonclan = entity
                     closest_dist = dist
         return closest_nonclan
 
     def get_next_fighter(self):
         for index,level in enumerate(self.dat.maplist):
-            if index > 0:
-                for object in self.objects[self.dat.maplist[index]]:
-                    if object.fighter:
-                        return object
+            #if index > 0:
+            for entity in self.entities[self.dat.maplist[index]]:
+                if entity.fighter:
+                    return entity
 
     def target_tile(self, max_range = None):
         while True:
-            self.gui.flush()
+            self.gui.flush(self.rootcon)
             thekey = self.gui.getkey(self.con, self.mouse, self.key)
             self.render_all()
             (x, y) = (self.mouse.cx, self.mouse.cy)
-            (x, y) = (self.engine.camera_x + x, self.engine.camera_y + y) #from screen to map coords
+            (x, y) = (self.camera_x + x, self.camera_y + y) #from screen to map coords
             if (self.mouse.lbutton_pressed and self.fovx.map_is_in_fov(self.player.fighter.fov, x, y) and (max_range is None or self.player.distance(x,y) <= max_range)):
                 return (x, y)
-            if self.mouse.rbutton_pressed or self.key.vk == ESC:
+            if self.mouse.rbutton_pressed or self.key.vk == self.keymap.ESC:
                 return (None, None)
 
     def is_blocked(self, x, y):
         if self.map[self.dungeon_levelname].blocked(x,y):
             return True
-        for object in self.objects[self.dungeon_levelname]:
-            if object.blocks and object.x == x and object.y == y:
+        for entity in self.entities[self.dungeon_levelname]:
+            if entity.blocks and entity.x == x and entity.y == y:
                 return True
         return False
 
     def total_alive_entities(self):
-        return [obj for obj in self.objects[self.dungeon_levelname]
-                if obj.fighter and obj.fighter.hp > 0]
+        return [entity for entity in self.entities[self.dungeon_levelname]
+                if entity.fighter and entity.fighter.hp > 0]
 
     def printstats(self, entity):
         self.message(entity.name, self.col.WHITE)
         self.message('Level =' + str(entity.fighter.xplevel), self.col.WHITE)
         self.message('XP =' + str(entity.fighter.xp), self.col.WHITE)
         self.message('HP =' + str(entity.fighter.hp) + '/' + str(entity.fighter.max_hp()), self.col.WHITE)
-        self.message('power =' + str(entity.fighter.power(self)) + '/' + str(entity.fighter.base_power), self.col.WHITE)
-        self.message('defense =' + str(entity.fighter.defense(self)) + '/' + str(entity.fighter.base_defense), self.col.WHITE)
+        self.message('power =' + str(entity.fighter.power()) + '/' + str(entity.fighter.base_power), self.col.WHITE)
+        self.message('defense =' + str(entity.fighter.defense()) + '/' + str(entity.fighter.base_defense), self.col.WHITE)
 
     def isplayer(self, entity):
         if entity is self.player:
@@ -2417,42 +2444,51 @@ class GameEngine(object):
             return False
 
     def check_level_up(self, user):
-            level_up_xp = self.dat.LEVEL_UP_BASE + user.fighter.xplevel * self.dat.LEVEL_UP_FACTOR
-            if user.fighter.xp >= level_up_xp:
-                user.fighter.xplevel += 1
-                user.fighter.xp -= level_up_xp
-                if user is self.player:
-                    self.message('You have reached level ' + str(user.fighter.xplevel) + '!', self.col.YELLOW)
-                else:
-                    self.message(user.name + ' has reached level ' + str(user.fighter.xplevel) + '!', self.col.YELLOW)
-                choice = None
-                if user is self.player:
-                    while choice == None: #keep asking till a choice is made
-                            choice = self.menu(self.rootcon, 'Level up! Choose a stat to raise:\n',
-                            [MenuOption('Constitution (+25 HP, from ' + str(self.player.fighter.max_hp()) + ')',color=self.col.GREEN),
-                            MenuOption('Strength (+2 attack, from ' + str(self.player.fighter.power(self)) + ')', color=self.col.RED),
-                            MenuOption('Defense (+2 defense, from ' + str(self.player.fighter.defense(self)) + ')', color=self.col.BLUE)], self.dat.LEVEL_SCREEN_WIDTH, letterdelim=')')
-                else:
-                    choice = random_int(0, 0, 2) #TODO: variablize this
-                if choice == 0:
-                    user.fighter.base_max_hp += 25
-                elif choice == 1:
-                    user.fighter.base_power += 2
-                elif choice == 2:
-                    user.fighter.base_defense += 2
-                user.fighter.hp = user.fighter.max_hp()
+        level_up_xp = self.dat.LEVEL_UP_BASE + user.fighter.xplevel * self.dat.LEVEL_UP_FACTOR
+        if user.fighter.xp >= level_up_xp:
+            user.fighter.xplevel += 1
+            user.fighter.xp -= level_up_xp
+            if user is self.player:
+                self.message('You have reached level ' + str(user.fighter.xplevel) + '!', self.col.YELLOW)
+            else:
+                self.message(user.name + ' has reached level ' + str(user.fighter.xplevel) + '!', self.col.YELLOW)
+            choice = None
+            if user is self.player:
+                while choice == None: #keep asking till a choice is made
+                        choice = self.menu(self.rootcon, 'Level up! Choose a stat to raise:\n',
+                        [MenuOption('Constitution (+25 HP, from ' + str(self.player.fighter.max_hp()) + ')',color=self.col.GREEN),
+                        MenuOption('Strength (+2 attack, from ' + str(self.player.fighter.power()) + ')', color=self.col.RED),
+                        MenuOption('Defense (+2 defense, from ' + str(self.player.fighter.defense()) + ')', color=self.col.BLUE)], self.dat.LEVEL_SCREEN_WIDTH, letterdelim=')')
+            else:
+                choice = random_int(0, 0, 2) #TODO: variablize this
+            if choice == 0:
+                user.fighter.base_max_hp += 25
+            elif choice == 1:
+                user.fighter.base_power += 2
+            elif choice == 2:
+                user.fighter.base_defense += 2
+            user.fighter.hp = user.fighter.max_hp()
 
     def handle_keys(self):
-        thekey = self.gui.getkey(self.con, self.mouse, self.key)
+        #print '>>> HANDLE KEYS <<<'
+        #print 'automode = ', self.dat.AUTOMODE
+        wait = not self.dat.AUTOMODE
+        while 1:
+            thekey = self.gui.getkey(self.con, self.mouse, self.key, wait=wait)
+            if thekey.pressed:
+                break
+            if not wait:
+                return self.dat.STATE_NOACTION
+
+        #print 'got key', thekey, vars(thekey)
         if thekey.keycode == self.keymap.ENTER and thekey.lalt:
             self.gui.toggle_fullscreen()
-        elif thekey.keycode == self.keymap.ESC:
+        elif thekey.keycode == self.keymap.ESC or thekey.keychar == '\x1b':
             return self.dat.STATE_EXIT #exit game
         if self.game_state == self.dat.STATE_PLAYING:
-            if thekey.keycode == self.keymap.KPDEC or thekey.keycode == self.keymap.KP5:
-                player_resting(self)
+            if thekey.keycode == self.keymap.KPDEC or thekey.keycode == self.keymap.KP5 or thekey.keychar == '.':
+                self.player_resting()
                 self.fov_recompute = True
-                pass
             elif thekey.keycode == self.keymap.UP or thekey.keychar == 'k' or thekey.keycode == self.keymap.KP8:
                 return self.player_move_or_attack(0, -1)
             elif thekey.keycode == self.keymap.DOWN or thekey.keychar == 'j' or thekey.keycode == self.keymap.KP2:
@@ -2471,10 +2507,10 @@ class GameEngine(object):
                 return self.player_move_or_attack(-1, 1)
             else:
                 if thekey.keychar == 'g':
-                    for object in self.objects[self.dat.maplist[self.player.dungeon_level]]: #look for items in the player's title on the same floor of the player
-                        if object.x == self.player.x and object.y == self.player.y and object.item:
+                    for entity in self.entities[self.dat.maplist[self.player.dungeon_level]]: #look for items in the player's title on the same floor of the player
+                        if entity.x == self.player.x and entity.y == self.player.y and entity.item:
                             self.player.game_turns += 1
-                            return object.item.pick_up(self.player)
+                            return entity.item.pick_up(self.player)
                 if thekey.keychar == 'i':
                     chosen_item = self.inventory_menu(self.rootcon, 'Press the key next to an item to use it. \nPress ESC to return to game\n', self.player)
                     if chosen_item is not None:
@@ -2486,37 +2522,37 @@ class GameEngine(object):
                         self.player.game_turns += 1
                         chosen_item.drop(self.player)
                 if thekey.keychar == 'c':
-                    level_up_xp = self.dat.LEVEL_UP_BASE + self.player.xplevel * self.dat.LEVEL_UP_FACTOR
-                    self.msgbox(self.rootcon, 'Character Information\n\nLevel: ' + str(self.player.xplevel) + '\nExperience: ' + str(self.player.fighter.xp) +
+                    level_up_xp = self.dat.LEVEL_UP_BASE + self.player.fighter.xplevel * self.dat.LEVEL_UP_FACTOR
+                    self.msgbox(self.rootcon, 'Character Information\n\nLevel: ' + str(self.player.fighter.xplevel) + '\nExperience: ' + str(self.player.fighter.xp) +
                         '\nExperience to level up: ' + str(level_up_xp) + '\n\nMaximum HP: ' + str(self.player.fighter.max_hp()) +
-                        '\nAttack: ' + str(self.player.fighter.power()) + '\nDefense: ' + str(self.player.fighter.defense(self)), self.dat.CHARACTER_SCREEN_WIDTH)
+                        '\nAttack: ' + str(self.player.fighter.power()) + '\nDefense: ' + str(self.player.fighter.defense()), self.dat.CHARACTER_SCREEN_WIDTH)
                 if thekey.keychar == 'x':
                     self.msgbox(self.rootcon, 'You start to meditate!', self.dat.CHARACTER_SCREEN_WIDTH)
-                    level_up_xp = self.dat.LEVEL_UP_BASE + self.player.xplevel * self.dat.LEVEL_UP_FACTOR
+                    level_up_xp = self.dat.LEVEL_UP_BASE + self.player.fighter.xplevel * self.dat.LEVEL_UP_FACTOR
                     self.player.fighter.xp = level_up_xp
-                    self.check_level_up()
+                    self.check_level_up(self.player)
                     self.player.game_turns += 1
                 if thekey.keychar == 'a':
                     self.msgbox(self.rootcon, 'You can smell them all!', self.dat.CHARACTER_SCREEN_WIDTH)
-                    self.set_objects_visible()
+                    self.set_entities_visible()
                 if thekey.keychar == 'q':
                     self.msgbox(self.rootcon, 'You feel your inner dwarf admiring the dungeon walls!', self.dat.CHARACTER_SCREEN_WIDTH)
                     self.map[self.dungeon_levelname].set_map_explored()
                     self.fov_recompute = True
                 if thekey.keychar == 'z':
                     self.msgbox(self.rootcon, 'You start digging at your feet!', self.dat.CHARACTER_SCREEN_WIDTH)
-                    map.next_level(self)
+                    self.next_level()
                 if thekey.keychar == '>':
                     if self.downstairs[self.dat.maplist[self.player.dungeon_level]].x == self.player.x and self.downstairs[self.dat.maplist[self.player.dungeon_level]].y == self.player.y:
                         self.player.game_turns +=1
-                        map.next_level(self)
+                        self.next_level()
                 if thekey.keychar == '<':
                     if self.upstairs[self.dat.maplist[self.player.dungeon_level]].x == self.player.x and self.upstairs[self.dat.maplist[self.player.dungeon_level]].y == self.player.y:
                         self.player.game_turns +=1
-                        map.prev_level(self)
+                        self.prev_level()
                 if thekey.keychar == 's': #general status key
                     self.msgbox(self.rootcon, 'You start digging above your head!', self.dat.CHARACTER_SCREEN_WIDTH)
-                    map.prev_level(self)
+                    self.prev_level()
                 if thekey.keychar == 'p': #display log
                     width = self.dat.SCREEN_WIDTH
                     height = self.dat.SCREEN_HEIGHT
@@ -2526,9 +2562,9 @@ class GameEngine(object):
                     numpages = int(float(len(self.msg_history))/self.dat.MAX_NUM_ITEMS + 1)
                     for thepage in range(numpages):
                         history.append([])
-                    for obj in reversed(self.msg_history):
-                        line = obj.text
-                        color = obj.color
+                    for msg in reversed(self.msg_history):
+                        line = msg.text
+                        color = msg.color
                         history[page].append(MenuOption(line, color = color))
                         count += 1
                         if count >= self.dat.MAX_NUM_ITEMS:
@@ -2538,38 +2574,38 @@ class GameEngine(object):
                         window = self.gui.new_window(width, height)
                         self.gui.print_rect(window, 0, 0, width, height, '')
                         self.gui.con_blit(window, 0, 0, width, height, 0, 0, 0, 1.0, 1)
-                        menu(self.rootcon, 'Message Log: (Sorted by Most Recent Turn) Page ' + str(thepage+1) + '/' + str(numpages), history[thepage+1], self.dat.SCREEN_WIDTH, letterdelim=None)
+                        self.menu(self.rootcon, 'Message Log: (Sorted by Most Recent Turn) Page ' + str(thepage+1) + '/' + str(numpages), history[thepage+1], self.dat.SCREEN_WIDTH, letterdelim=None)
                     self.fov_recompute = True
                 if thekey.keychar == 'r':
                     logger.info('reloading game data')
                     reload(self.ent)
                     self.fov_recompute = True
                     self.gui.prep_keyboard(self.dat.KEYS_INITIAL_DELAY,self.dat.KEYS_INTERVAL)
-                    buff_component = Buff('Super Strength', power_bonus=20)
+                    buff_component = Buff(self, 'Super Strength', power_bonus=20)
                     self.player.fighter.add_buff(buff_component)
                     self.msgbox ('YOU ROAR WITH BERSERKER RAGE!', self.dat.CHARACTER_SCREEN_WIDTH)
                 if thekey.keychar == 'w':
                     self.msgbox(self.rootcon, 'You fashion some items from the scraps at your feet', self.dat.CHARACTER_SCREEN_WIDTH)
-                    give_items(self)
+                    self.give_items()
                 return self.dat.STATE_NOACTION
 
     def give_items(self):
         x = 0
         y = 0
         for item in self.ent.items:
-            theitem = Thing(self, **self.ent.items[item])
+            theitem = Entity(self, **self.ent.items[item])
             theitem.always_visible = True
             self.player.fighter.add_item(theitem)
 
-    def set_objects_visible(self):
-        for object in self.objects[self.dat.maplist[self.player.dungeon_level]]:
-            object.always_visible = True
+    def set_entities_visible(self):
+        for entity in self.entities[self.dat.maplist[self.player.dungeon_level]]:
+            entity.always_visible = True
 
     def save_final_sql_csv(self):
         if self.dat.FREE_FOR_ALL_MODE:
-            for obj in self.objects[self.dungeon_levelname]:
-                if obj.fighter:
-                    self.entity_db.log_entity(obj)
+            for entity in self.entities[self.dungeon_levelname]:
+                if entity.fighter:
+                    self.entity_db.log_entity(entity)
             self.entity_db.log_flush(force_flush=True)
             self.message_db.log_flush(force_flush=True)
             self.entity_db.export_csv()
@@ -2579,37 +2615,37 @@ class GameEngine(object):
         logger.info('game saved')
         file = shelve.open(filename, 'n')
         file['map'] = self.map
-        file['objects'] = self.objects[self.dungeon_levelname]
-        file['player_index'] = self.objects[self.dungeon_levelname].index(self.player) #index of player in the objects list
+        file['entities'] = self.entities[self.dungeon_levelname]
+        file['player_index'] = self.entities[self.dungeon_levelname].index(self.player) #index of player in the entities list
         file['game_msgs'] = self.game_msgs
         file['msg_history'] = self.msg_history
         file['game_state'] = self.game_state
-        file['stairs_index'] = self.objects[self.dungeon_levelname].index(self.stairs)
+        file['stairs_index'] = self.entities[self.dungeon_levelname].index(self.stairs)
         file['dungeon_level'] = self.player.dungeon_level
         file.close()
 
     def load_game(self, filename='savegame'):
         file = shelve.open(filename, 'r')
         self.map = file['map']
-        self.objects[self.dungeon_levelname] = file['objects']
-        self.player = self.objects[self.dungeon_levelname][file['player_index']]  #get index of player in the objects list
+        self.entities[self.dungeon_levelname] = file['entities']
+        self.player = self.entities[self.dungeon_levelname][file['player_index']]  #get index of player in the entities list
         self.game_msgs = file['game_msgs']
         self.msg_history = file['msg_history']
         self.game_state = file['game_state']
-        self.stairs = self.objects[self.dungeon_levelname][file['stairs_index']]
+        self.stairs = self.entities[self.dungeon_levelname][file['stairs_index']]
         self.player.dungeon_level = file['dungeon_level']
         file.close()
         self.map[self.dungeon_levelname].initialize_fov()
 
     def new_game(self):
         fighter_component = Fighter(self, hp=300, defense=10, power=20, xp=0, xpvalue=0, clan='monster', death_function=self.player_death, speed = 10)
-        self.player = Thing(self, self.dat.SCREEN_WIDTH/2, self.dat.SCREEN_HEIGHT/2, '@', 'Roguetato', self.col.WHITE, tilechar=self.dat.TILE_MAGE, blocks=True, fighter=fighter_component)
-        self.player.dungeon_level = 1
+        self.player = Entity(self, self.dat.SCREEN_WIDTH/2, self.dat.SCREEN_HEIGHT/2, '@', 'Roguetato', self.col.WHITE, tilechar=self.dat.TILE_MAGE, blocks=True, fighter=fighter_component)
+        self.player.dungeon_level = 0
         self.game_state = self.dat.STATE_PLAYING
         self.player.game_turns = 0
         self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
         self.map = {}
-        self.objects = {}
+        self.entities = {}
         self.upstairs = {}
         self.downstairs = {}
         self.tick = 0
@@ -2626,9 +2662,9 @@ class GameEngine(object):
         self.gui.clear(self.con)
         if not self.dat.AUTOMODE:
             equipment_component = Equipment(self, slot='wrist', max_hp_bonus = 5)
-            obj = Thing(self, 0, 0, '-', 'wristguards of the whale', self.col.LIGHT_RED, equipment=equipment_component)
-            obj.always_visible = True
-            self.player.fighter.add_item(obj)
+            entity = Entity(self, 0, 0, '-', 'wristguards of the whale', self.col.LIGHT_RED, equipment=equipment_component)
+            entity.always_visible = True
+            self.player.fighter.add_item(entity)
             equipment_component.equip(self.player)
             self.player.fighter.hp = self.player.fighter.max_hp()
         self.message('Welcome to MeFightRogues! Good Luck! Don\'t suck!', self.col.BLUE)
@@ -2638,7 +2674,7 @@ class GameEngine(object):
         self.player_action = None
         (self.camera_x, self.camera_y) = (0, 0)
         if self.dat.AUTOMODE:
-            self.set_objects_visible()
+            self.set_entities_visible()
             self.map[self.dungeon_levelname].set_map_explored()
             battleover = False
             self.fov_recompute = True
@@ -2647,8 +2683,8 @@ class GameEngine(object):
                 self.player.fighter.death_function(self.player, None)
             self.render_all() #TODO: probably need to do some surgery in gamestuff.render_all()
             if 0:
-                for object in self.objects[self.dat.maplist[self.player.dungeon_level]]:
-                    object.clear(self)
+                for entity in self.entities[self.dat.maplist[self.player.dungeon_level]]:
+                    entity.clear()
             self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
             if not self.dat.AUTOMODE:
                 if (self.player.fighter.speed_counter <= 0 and not self.player.ai) or self.game_state == self.dat.STATE_DEAD: #player can take a turn-based unless it has an AI
@@ -2661,32 +2697,32 @@ class GameEngine(object):
                 self.tick += 1
                 self.fov_recompute = True
                 for index,self.dungeon_levelname in enumerate(self.dat.maplist):
-                    if index > 0: #skip intro level
-                        for obj in self.objects[self.dungeon_levelname]:
-                            if obj.fighter:
-                                if obj.fighter.speed_counter <= 0 and obj.fighter.alive: #only allow a turn if the counter = 0.
-                                    if obj.ai:
-                                        if obj.ai.take_turn(): #only reset speed_counter if monster is still alive
-                                            obj.fighter.speed_counter = obj.fighter.speed()
-                                if obj.fighter.alive:
-                                    if obj.fighter.regen_counter <= 0: #only regen if the counter = 0.
-                                        obj.fighter.hp += int(obj.fighter.max_hp() * self.dat.REGEN_MULTIPLIER)
-                                        obj.fighter.regen_counter = obj.fighter.regen(self)
-                                    obj.fighter.regen_counter -= 1
-                                    obj.fighter.speed_counter -= 1
-                                    if obj.fighter.buffs:
-                                        for buff in obj.fighter.buffs:
-                                            buff.duration -= buff.decay_rate
-                                            if buff.duration <= 0:
-                                                self.message(obj.name + ' feels the effects of ' + buff.name + ' wear off!', self.col.LIGHT_RED)
-                                                obj.fighter.remove_buff(buff)
-                                    if obj.fighter.hp > obj.fighter.max_hp():
-                                            obj.fighter.hp = obj.fighter.max_hp()
-                                    self.check_level_up(obj)
-                                if self.dat.FREE_FOR_ALL_MODE:
-                                    self.entity_db.log_entity(obj)
-                            elif obj.ai:
-                                obj.ai.take_turn()
+                    #if index > 0: #skip intro level
+                    for entity in self.entities[self.dungeon_levelname]:
+                        if entity.fighter:
+                            if entity.fighter.speed_counter <= 0 and entity.fighter.alive: #only allow a turn if the counter = 0.
+                                if entity.ai:
+                                    if entity.ai.take_turn(): #only reset speed_counter if monster is still alive
+                                        entity.fighter.speed_counter = entity.fighter.speed()
+                            if entity.fighter.alive:
+                                if entity.fighter.regen_counter <= 0: #only regen if the counter = 0.
+                                    entity.fighter.hp += int(entity.fighter.max_hp() * self.dat.REGEN_MULTIPLIER)
+                                    entity.fighter.regen_counter = entity.fighter.regen()
+                                entity.fighter.regen_counter -= 1
+                                entity.fighter.speed_counter -= 1
+                                if entity.fighter.buffs:
+                                    for buff in entity.fighter.buffs:
+                                        buff.duration -= buff.decay_rate
+                                        if buff.duration <= 0:
+                                            self.message(entity.name + ' feels the effects of ' + buff.name + ' wear off!', self.col.LIGHT_RED)
+                                            entity.fighter.remove_buff(buff)
+                                if entity.fighter.hp > entity.fighter.max_hp():
+                                        entity.fighter.hp = entity.fighter.max_hp()
+                                self.check_level_up(entity)
+                            if self.dat.FREE_FOR_ALL_MODE:
+                                self.entity_db.log_entity(entity)
+                        elif entity.ai:
+                            entity.ai.take_turn()
                 if self.dat.FREE_FOR_ALL_MODE:
                     self.entity_db.log_flush()
                     self.message_db.log_flush()
@@ -2699,11 +2735,11 @@ class GameEngine(object):
                         self.dat.AUTOMODE = False
                         self.render_all()
                         chosen_item = self.inventory_menu(self.rootcon,'inventory for ' + alive_entities[0].name, alive_entities[0])
-                        save_final_sql_csv(self)
+                        self.save_final_sql_csv()
                     if len(alive_entities) <=0:
                         message ('BATTLE ROYALE IS OVER! EVERYONE DIED! YOU ALL SUCK!', self.col.BLUE)
                         self.dat.AUTOMODE = False
-                        save_final_sql_csv(self)
+                        self.save_final_sql_csv()
             self.dungeon_levelname = self.dat.maplist[self.player.dungeon_level]
 
 
