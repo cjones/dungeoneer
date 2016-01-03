@@ -124,14 +124,22 @@ def menu(rootcon, header, options, width, Game, letterdelim=None):
     while not goodchoice:
         key = Game.gui.getkey(Game.con, Game.mouse, Game.key, wait=True)
         if key.pressed == False: continue
-        #convert ASCII code to an index. if it's valid, return it
 
-        index = key.charcode - ord('a')
+        # msgbox behavior? it gets stuck in this loop forever. this check makes
+        # it behave like "press any key to dismiss" and returns None if there
+        # are no options that could possibly match, which is the case with
+        # msgbox()
+        if options:
+            #convert ASCII code to an index. if it's valid, return it
+            index = key.charcode - ord('a')
 
-        if index >= 0 and index < len(options):
-            goodchoice = True
-            retval = index
-        elif key.keycode == keys.ESC or key.keycode == keys.SPACE:
+            if index >= 0 and index < len(options):
+                goodchoice = True
+                retval = index
+            elif key.keycode == keys.ESC or key.keycode == keys.SPACE:
+                goodchoice = True
+                retval = None
+        else:
             goodchoice = True
             retval = None
 

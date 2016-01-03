@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #standard imports
 from gamestuff import *
 import data
@@ -310,12 +312,12 @@ def check_level_up(Game, user):
 #KEYPRESS CHECKS
 def handle_keys(Game):
 
-    thekey = Game.gui.getkey(Game.con, Game.mouse, Game.key)
+    thekey = Game.gui.getkey(Game.con, Game.mouse, Game.key, wait=not Game.dat.AUTOMODE)
 
     if thekey.keycode == keys.ENTER and thekey.lalt:
         #ALT + ENTER: toggle fullscreen
         Game.gui.toggle_fullscreen()
-    elif thekey.keycode == keys.ESC:
+    elif thekey.keycode == keys.ESC or thekey.keychar == '\x1b':
         return Game.dat.STATE_EXIT #exit game
 
     if Game.game_state == Game.dat.STATE_PLAYING:
@@ -507,4 +509,4 @@ def save_final_sql_csv(Game):
 
 
 if __name__ == '__main__':
-    game_initialize()
+    game_initialize(None)

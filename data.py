@@ -6,7 +6,7 @@ class Datastuff(object):
         self.col = colors.Colorstuff(gamedata.GRAPHICSMODE)
         self.col.init_colors()
 
-        self.SHOW_PANEL         = False
+        self.SHOW_PANEL         = True
 
         #DON'T EDIT DATA BETWEEN X's WHILE GAME IS RUNNING, UNLESS YOU WANT THE GAME TO CRASH
         #.............................................
