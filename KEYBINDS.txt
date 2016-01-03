@@ -1,0 +1,38 @@
+  KP  |  VI
+------+------
+7 8 9 | y k u
+4   6 | h   l
+1 2 3 | b j n
+
+CATEGORY	KEYS		ACTION
+==========================================================
+interface	Escape		(from game) show main menu
+interface	Escape		(from menu) exit menu
+interface	LeftAlt+Enter	enter fullscreen (BROKEN on osx)
+interface:dev	A		set all objects visible
+interface:dev	Q		set map explored
+
+movement	K, KP8, Up	move or attack UP
+movement	J, KP2, Down	move or attack DOWN
+movement	H, KP4, Left	move or attack LEFT
+movement	L, KP6, Right	move or attack RIGHT
+movement	Y, KP7		move or attack UP   + LEFT
+movement	U, KP9		move or attack UP   + RIGHT
+movement	N, KP3		move or attack DOWN + RIGHT
+movement	B, KP1		move or attack DOWN + LEFT
+movement	.		do nothing (pass turn)
+movement	>		take stairs to next level
+movement	<		take stairs to previous level
+movement:dev	Z		teleport to next level
+movement:dev    S		teleport to previous level
+
+items		G		pick up item
+items		I		use item from inv
+items		D		drop item from inv
+items:dev	W		give player all the items
+
+info		C		display character stats
+info		P		display log
+
+misc:dev	X		level up
+misc:dev	R		reload game? (BROKEN)
