@@ -1,5 +1,5 @@
 dungeoneer.zip
-*.pyc
+*.py[co]
 screenshots/
 savegame
 *.psd
@@ -15,3 +15,4 @@ stats.db
 *.db-journal
 tests/
 libtcodx/
+*.log

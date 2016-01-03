@@ -2798,5 +2798,5 @@ def main(argv=None, engine=GameEngine):
         return 0
 
 if __name__ == '__main__':
-    #sys.argv[1:] = ['-d', 'DEBUG.log', '-m', 'curses', '-a']
+    sys.argv[1:] = '-d debug.log -c'.split()
     sys.exit(main())
