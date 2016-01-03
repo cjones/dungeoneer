@@ -20,7 +20,7 @@ import os
 
 sys.dont_write_bytecode = True  # for great justice
 
-from backends import tcod
+import tcod
 
 try:
     import curses.ascii
