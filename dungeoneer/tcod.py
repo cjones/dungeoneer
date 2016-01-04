@@ -54,45 +54,41 @@ HEXVERSION = 0x010501
 STRVERSION = "1.5.1"
 TECHVERSION = 0x01050103
 
-class Platform:
-    WINDOWS = 'win32'
-    OSX = 'darwin'
-    LINUX = 'linux'
-    OTHER = sys.platform
-
 
 def get_platform():
     if (os.name == 'nt' or sys.platform == 'win32' or
             'ce' in sys.builtin_module_names):
-        return Platform.WINDOWS
+        return 'win32'
     if os.name != "posix" or not hasattr(os, 'uname'):
-        # it's a mystery! someone's toaster or something
-        return Platform.OTHER
+        # it's a mystery! someone's toaster or something. one thing is for
+        # certain: this probably isn't gonna work.
+        return sys.platform
     name = os.uname()[0].lower().replace('/', '')
     if name.startswith('linux'):
-        return Platform.LINUX
+        return 'linux'
     if name.startswith('darwin'):
-        return Platform.OSX
+        return 'osx'
     # possible platforms at this point include cygwin, sunos, aix, irix, etc..
     # honestly doesn't matter, it's unlikely to work. :P
-    return Platform.OTHER
+    return sys.platform
 
 
 PLATFORM = get_platform()
 LIBFILE = ctypes.util.find_library('tcod')
-PREFIX = os.path.dirname(os.path.abspath(__file__))
+GAMEDIR = os.path.dirname(os.path.abspath(__file__))
+PREFIX = os.path.dirname(GAMEDIR)
 LIBDIR = os.path.join(PREFIX, 'lib')
 
 if LIBFILE is not None:
     _lib = ctypes.CDLL(LIBFILE)
 else:
-    if PLATFORM == Platform.OSX:
+    if PLATFORM == 'osx':
         print >> sys.stderr, OSX_LIB_MISSING
         sys.exit(1)
-    if PLATFORM == Platform.WINDOWS:
+    if PLATFORM == 'win32':
         ext = '.dll'
     else:
-        os.putenv('LD_LIBRARY_PATH', LIBDIR)
+        os.putenv('LD_LIBRARY_PATH', LIBDIR)  # probably not necessary
         ext = '.so'
     for maybe_path in glob.glob(os.path.join(LIBDIR, '*' + ext)):
         try:
@@ -110,7 +106,7 @@ else:
 
 
 # dubious.. isn't this what WDLL is for?
-if PLATFORM == Platform.WINDOWS:
+if PLATFORM == 'win32':
     # On Windows, ctypes doesn't work well with function returning structs,
     # so we have to user the _wrapper functions instead
     _lib.TCOD_color_multiply = _lib.TCOD_color_multiply_wrapper
@@ -128,9 +124,10 @@ if PLATFORM == Platform.WINDOWS:
     _lib.TCOD_parser_get_color_property = _lib.TCOD_parser_get_color_property_wrapper
 
 
-# XXX this doesn't make much sense..why all these when others are defined in line further on? why only for osx if they "should" be valid call signature for other platforms?
-# Should be valid on any platform, check it!  Has to be done after Color is defined.
-if PLATFORM == Platform.OSX:
+# XXX this doesn't make much sense..why are all these function prototypes only
+# used on osx, and some in-line further on? it'd be nice to get rid of this, it
+# creates an annoying circular dependency.
+if PLATFORM == 'osx':
     setup_protos(_lib)
 
 
