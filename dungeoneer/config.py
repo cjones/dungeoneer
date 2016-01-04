@@ -142,6 +142,7 @@ class GameData(object):
 
     def __init__(self, engine):
         self.engine = engine
+        self.BEEP_OK            = True
         self.SHOW_PANEL         = True
         self.WALL_CHAR          = 'X'
         self.GROUND_CHAR        = ' '
@@ -177,14 +178,14 @@ class GameData(object):
             self.TERM_WIDTH, self.TERM_HEIGHT = engine.winsz
             #self.PANEL_HEIGHT = 10
 
-            self.SCREEN_WIDTH = min([self.TERM_WIDTH, self.SCREEN_WIDTH])
-            self.SCREEN_HEIGHT = min([self.TERM_HEIGHT, self.SCREEN_HEIGHT])
+            self.SCREEN_WIDTH = self.TERM_WIDTH  - 2 ##min([self.TERM_WIDTH, self.SCREEN_WIDTH])
+            self.SCREEN_HEIGHT = self.TERM_HEIGHT - 2 # min([self.TERM_HEIGHT, self.SCREEN_HEIGHT])
 
-            self.CAMERA_WIDTH       = self.SCREEN_WIDTH
+            self.CAMERA_WIDTH       = self.SCREEN_WIDTH - 2
             self.CAMERA_HEIGHT      = self.SCREEN_HEIGHT - 15
 
-            self.MAP_WIDTH          = 100
-            self.MAP_HEIGHT         = 60
+            self.MAP_WIDTH          = 256
+            self.MAP_HEIGHT         = 256
 
         self.MAP_PAD_W          = self.CAMERA_WIDTH  / 2  #don't allow rooms to touch edges. ideally also don't get close enough to edge of map to stop the scrolling effect
         self.MAP_PAD_H          = self.CAMERA_HEIGHT / 2

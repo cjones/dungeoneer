@@ -31,6 +31,7 @@ class GUI(object):
     def __init__(self, engine):
         self.engine = engine
         self.window_stack = [engine.stdscr]
+        self.curses_needs_flush = False
 
     def fatal_error(self, message):
         raise RuntimeError(message)
@@ -43,18 +44,31 @@ class GUI(object):
         else:
             self.err_graphicsmode('isgameover')
 
-    ## curses helper functions, not applicable to sdl backend
+    # curses helper functions, not applicable to sdl backend these need to move
+    # into their own backend support module similar to tbod.py... later
 
     def raise_window(self, win):
-        pos = self.window_stack.index(win)
-        self.window_stack.append(self.window_stack.pop(pos))
+        try:
+            pos = self.window_stack.index(win)
+        except ValueError:
+            log.warn('window not found {!r}', win)
+        else:
+            self.window_stack.append(self.window_stack.pop(pos))
 
-    def refresh(self, ontop=None):
+    def refresh(self, ontop=None, flush=False):
         if ontop is not None:
             self.raise_window(ontop)
-        for win in self.window_stack:
-            win.noutrefresh()
-        curses.doupdate()
+        if flush:
+            self.curses_console_flush(force=True)
+        else:
+            self.curses_needs_flush = True
+
+    def curses_console_flush(self, force=False):
+        if self.window_stack and (force or self.curses_needs_flush):
+            self.curses_needs_flush = False
+            for win in self.window_stack:
+                win.noutrefresh()
+            curses.doupdate()
 
     def clearall(self):
         for win in self.window_stack:
@@ -63,9 +77,12 @@ class GUI(object):
 
     def delwin(self, win):
         win.clear()
+        win.refresh()
         while win in self.window_stack:
             self.window_stack.remove(win)
-        self.refresh()
+        for win in self.window_stack:
+            win.touchwin()
+            win.refresh()
 
     def newwin(self, height, width, ypos, xpos, box=False):
         window = curses.newwin(height, width, ypos, xpos)
@@ -113,8 +130,15 @@ class GUI(object):
         if self.engine.game_mode == 'tcod':
             tcod.console_print_rect_ex(con, xx, yy, nwidth, nheight, bkg, align, val)
         elif self.engine.game_mode == 'curses':
-            con.addstr(yy, xx, val)
-            self.refresh()
+            lines = val.splitlines()
+            for offset, line in enumerate(lines):
+                yodawg = yy + offset
+                try:
+                    con.addstr(yodawg, xx, line)
+                except:
+                    log.exception('failed to write {!r} to {!r} at ({},{})', line, con, xx, yodawg)
+                else:
+                    self.refresh()
         else:
             self.err_graphicsmode('print_rect')
 
@@ -145,7 +169,7 @@ class GUI(object):
         if self.engine.game_mode == 'tcod':
             return tcod.console_get_height_rect(con, xx, yy, nwidth, nheight, val)
         elif self.engine.game_mode == 'curses':
-            return 1 #XXX
+            return len(val.splitlines())
         else:
             self.err_graphicsmode('get_height_rect')
 
@@ -236,6 +260,10 @@ class GUI(object):
                 tcod.sys_check_for_event(tcod.EVENT_KEY_PRESS | tcod.EVENT_MOUSE, key, mouse)
             event = KeypressEvent(key.vk, key.c, chr(key.c), key.pressed, key.lalt, key.lctrl, key.ralt, key.rctrl, key.shift)
         elif self.engine.game_mode == 'curses':
+            if wait:
+                con.timeout(-1)
+            else:
+                con.timeout(0)
             while True:
                 key = con.getch()
                 if key == curses.ERR:
@@ -256,6 +284,7 @@ class GUI(object):
 
                 event = KeypressEvent(key, key, keychar, pressed, False, False, False, False, False)
                 break
+            con.timeout(-1)
         elif self.engine.game_mode == 'dummy':
             sys.stdout.write('waiting for a keypress: ')
             sys.stdout.flush()
@@ -282,7 +311,7 @@ class GUI(object):
         if self.engine.game_mode == 'tcod':
             tcod.console_flush()
         elif self.engine.game_mode == 'curses':
-            self.refresh()
+            self.curses_console_flush()
         else:
             self.err_graphicsmode('flush')
 

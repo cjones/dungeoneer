@@ -240,7 +240,7 @@ class GameEngine(object):
                     self.save_game()
                 except:
                     log.exception('error saving game', exc_info=sys.exc_info())
-                    self.msgbox(self.rootcon, 'Bye!', 24)
+                self.msgbox(self.rootcon, 'Bye!', 24, wait=False, keep=True)
                 break
 
     def next_level(self):
@@ -323,7 +323,7 @@ class GameEngine(object):
                     self.upstairs[self.dungeon_levelname].send_to_back() #so it's drawn below the monsters
                 else:
                     (prev_x, prev_y) = rooms[num_rooms -1].center()
-                    if flip_coin() == 1:
+                    if rng.flip_coin() == 1:
                         self.map[self.dungeon_levelname].create_h_tunnel(prev_x, new_x, prev_y)
                         self.map[self.dungeon_levelname].create_v_tunnel(prev_y, new_y, new_x)
                     else:
@@ -416,7 +416,7 @@ class GameEngine(object):
                 self.msg_history.append(MenuOption(str(turn) + ' : ' + line, color=color))
                 self.game_msgs.append((line, color))
 
-    def menu(self, rootcon, header, options, width, letterdelim=None):
+    def menu(self, rootcon, header, options, width, letterdelim=None, keep=False, wait=True):
         if len(options) > self.dat.MAX_NUM_ITEMS:
             self.message('Cannot have a menu with more than ' + str(self.dat.MAX_NUM_ITEMS) + ' options.')
         header_height = self.gui.get_height_rect(self.con, 0, 0, width, self.dat.SCREEN_HEIGHT, header)
@@ -463,26 +463,27 @@ class GameEngine(object):
         self.gui.con_blit(window, 0, 0, width, height, rootcon, x, y, 1.0, 0.7)
         self.gui.flush(rootcon)
         self.gui.prep_keyboard(0, 0)
-        if not options:
-            return
-        goodchoice = False
-        while not goodchoice:
-            key = self.gui.getkey(self.con, self.mouse, self.key, wait=True)
-            if key.pressed == False: continue
-            index = key.charcode - ord('a')
-            if index >= 0 and index < len(options):
-                goodchoice = True
-                retval = index
-            elif key.keycode == self.keymap.ESC or key.keycode == self.keymap.SPACE:
-                goodchoice = True
-                retval = None
-        if self.game_mode == 'curses':
+        retval = None
+        while True:
+            key = self.gui.getkey(self.con, self.mouse, self.key, wait=wait)
+            if key.pressed:
+                if not options or key.keycode in {self.keymap.ESC, self.keymap.SPACE}:
+                    break
+                index = key.charcode - ord('a')
+                if index >= 0 and index < len(options):
+                    retval = index
+                    break
+                if self.game_mode == 'curses' and self.dat.BEEP_OK:
+                    curses.beep()
+            elif not wait:
+                break
+        if self.game_mode == 'curses' and not keep:
             self.gui.delwin(window)
         self.gui.prep_keyboard(self.dat.KEYS_INITIAL_DELAY,self.dat.KEYS_INTERVAL)
         return retval
 
-    def msgbox(self, rootcon, text, width=50):
-        self.menu(rootcon, text, [], width)
+    def msgbox(self, rootcon, text, width=50, keep=False, wait=True):
+        return self.menu(rootcon, text, [], width, keep=keep, wait=wait)
 
     def inventory_menu(self, rootcon, header, user):
         if user.fighter:
@@ -1063,6 +1064,7 @@ class GameEngine(object):
                         if count >= self.dat.MAX_NUM_ITEMS:
                             page +=1
                             count = 0
+                    # XXX this is problematic for curses
                     for thepage in range(numpages):
                         window = self.gui.new_window(width, height)
                         self.gui.print_rect(window, 0, 0, width, height, '')
@@ -1223,7 +1225,7 @@ class GameEngine(object):
                 if self.dat.AUTOMODE:
                     alive_entities = self.total_alive_entities()
                     if len(alive_entities) == 1:
-                        self.message('BATTLE ROYALE IS OVER! Winner is ', self.col.BLUE)
+                        self.message('BATTLE R, OYALE IS OVER! Winner is ', self.col.BLUE)
                         self.printstats(alive_entities[0])
                         self.dat.AUTOMODE = False
                         self.render_all()
